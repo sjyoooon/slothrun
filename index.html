@@ -3,15 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <title>다이노런 - 이미지/박스 자동 전환</title>
+  <title>런당 랜덤 이미지 다이노런</title>
   <style>
-    body { margin: 0; background: #fff; display: grid; place-items: center; height: 100dvh; font-family: system-ui, sans-serif; }
+    :root { --bg: #ffffff; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg);
+      display: grid; place-items: center; height: 100dvh;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Arial, sans-serif;
+    }
     .wrap { position: relative; width: min(960px, 100vw); padding: 12px; }
-    canvas { width: 100%; height: auto; border: 1px solid #ddd; background: #fff; touch-action: manipulation; display: block; }
-    .hud { pointer-events: none; position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums; }
+    canvas { width: 100%; height: auto; display: block; border: 1px solid #ddd; background: #fff; touch-action: manipulation; }
+    .hud {
+      pointer-events: none; position: absolute; top: 12px; left: 12px; right: 12px;
+      display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums;
+      background: rgba(255,255,255,.0);
+    }
     .badge { background: rgba(255,255,255,.85); border: 1px solid #eee; padding: 6px 10px; border-radius: 8px; }
     #overlay { position: absolute; inset: 0; display: none; place-items: center; }
-    button { padding: 12px 16px; border: 0; border-radius: 10px; background: #111; color: #fff; font-weight: 700; cursor: pointer; }
+    button {
+      appearance: none; border: 0; padding: 12px 16px; border-radius: 10px;
+      background: #111; color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
     button:active { transform: translateY(1px); }
   </style>
 </head>
@@ -27,27 +40,27 @@
 
   <script>
     // ===============================
-    // 🔧 설정 (여기만 손대면 됨)
+    // 🔧 CONFIG (원하는 값 여기서 조정)
     // ===============================
     const CONFIG = {
       GAME_WIDTH: 900,
       GAME_HEIGHT: 260,
 
-      // 캐릭터 크기/위치/물리
+      // 지면/플레이어
       GROUND_Y: 220,
       DINO_X: 60,
       DINO_WIDTH: 36,
       DINO_HEIGHT: 42,
       DINO_FALLBACK_COLOR: "#000000",
-      JUMP_VELOCITY: -520,
-      GRAVITY: 1600,
+      JUMP_VELOCITY: -520, // px/s (음수=위)
+      GRAVITY: 1600,       // px/s^2
 
-      // 이동 속도
-      SPEED_START: 280,
-      SPEED_ACCEL_PER_SEC: 18,
+      // 게임 속도
+      SPEED_START: 280,        // 지면 기준 진행 속도(px/s)
+      SPEED_ACCEL_PER_SEC: 18, // 초당 가속
       SPEED_MAX: 780,
 
-      // 장애물 간격/크기(히트박스 = 렌더 크기)
+      // 장애물 (히트박스=렌더 크기)
       OBST_MIN_GAP: 220,
       OBST_MAX_GAP: 420,
       OBST_WIDTH: 30,
@@ -56,22 +69,48 @@
 
       // 점수
       SCORE_PER_OBSTACLE: 10,
-      HIGH_SCORE_KEY: "dinoHighScore_imgRect_v1",
+      HIGH_SCORE_KEY: "dinoHighScore_runRandom_v1",
 
-      // 🔽 파일 세트 지정 (원하는 만큼 추가/삭제)
-      // 캐릭터: sloth{ID}_a.png & sloth{ID}_b.png (같은 경로)
-      DINO_IDS: ["01", "02", "03"],
+      // 🔽 파일 세트 지정 (런 시작 시 1회 랜덤 선택, 런 동안 고정)
+      // 캐릭터: sloth{ID}_a.png / sloth{ID}_b.png
+      DINO_IDS: ["01","02","03"],
       DINO_PREFIX: "sloth",
       // 장애물: prop{ID}.png
-      OBST_IDS: ["01", "02", "03"],
+      OBST_IDS: ["01","02","03"],
       OBST_PREFIX: "prop",
+      // 배경: bg{ID}.png (가로 반복 스크롤, 3타일)
+      BG_IDS: ["01","02","03"],
+      BG_PREFIX: "bg",
+      // 구름: cloud{ID}.png (여러 개 스폰되지만 같은 이미지 사용)
+      CLOUD_IDS: ["01","02","03"],
+      CLOUD_PREFIX: "cloud",
 
       // 애니메이션
-      DINO_ANIM_FPS: 8, // 초당 프레임
+      DINO_ANIM_FPS: 8,
+
+      // 배경 스크롤 (배경은 이미지 있든 없든 이 크기로 그려서 맞춤)
+      BG_DRAW_WIDTH: 400,      // 배경 타일 하나의 가로
+      BG_DRAW_HEIGHT: 180,     // 배경 타일 하나의 세로
+      BG_Y: 40,                // 배경 타일 상단 Y
+      BG_SCROLL_PARALLAX: 0.5, // 지면 속도 대비 배경 속도 비율 (0.5 = 절반)
+      BG_FALLBACK_COLOR: "#ffd54f", // 노란 정사각 (없을 때)
+      BG_FALLBACK_SIZE: 80,    // 노란 정사각 한 변 길이 (타일 안에 가운데 배치)
+
+      // 구름
+      CLOUD_SPAWN_SEC_MIN: 1.2,
+      CLOUD_SPAWN_SEC_MAX: 2.6,
+      CLOUD_SPEED_MIN: 40,   // px/s
+      CLOUD_SPEED_MAX: 90,   // px/s
+      CLOUD_Y_MIN: 20,
+      CLOUD_Y_MAX: 100,
+      CLOUD_WIDTH: 64,
+      CLOUD_HEIGHT: 40,
+      CLOUD_FALLBACK_COLOR: "#43a047", // 초록 정사각
+      CLOUD_FALLBACK_SIZE: 24
     };
 
     // ===============================
-    // 캔버스/상태
+    // 캔버스 & UI
     // ===============================
     const cvs = document.getElementById("game");
     const ctx = cvs.getContext("2d");
@@ -79,89 +118,117 @@
     const highScoreEl = document.getElementById("highScore");
     const overlay = document.getElementById("overlay");
     const restartBtn = document.getElementById("restartBtn");
-
     cvs.width = CONFIG.GAME_WIDTH;
     cvs.height = CONFIG.GAME_HEIGHT;
 
+    // ===============================
+    // 상태
+    // ===============================
     const state = {
-      running: false,
-      dead: false,
+      running:false, dead:false,
       speed: CONFIG.SPEED_START,
       lastTime: 0,
       score: 0,
       highScore: Number(localStorage.getItem(CONFIG.HIGH_SCORE_KEY) || 0),
-      animTime: 0, // 캐릭터 2프레임 전환용
+      animTime: 0,
+      distSinceLast: 0
     };
 
-    const dino = {
-      x: CONFIG.DINO_X,
-      y: CONFIG.GROUND_Y - CONFIG.DINO_HEIGHT,
-      w: CONFIG.DINO_WIDTH,
-      h: CONFIG.DINO_HEIGHT,
-      vy: 0,
-      onGround: true,
-      // 현재 선택된 변형 ID (e.g., "01")
-      id: null,
-    };
+    // 캐릭터
+    const dino = { x: CONFIG.DINO_X, y: CONFIG.GROUND_Y - CONFIG.DINO_HEIGHT, w: CONFIG.DINO_WIDTH, h: CONFIG.DINO_HEIGHT, vy: 0, onGround: true, id: null };
 
-    /** 장애물: {x,y,w,h,scored:boolean,id:string|null} */
+    // 장애물 / 구름 / 배경
+    /** @type {Array<{x:number,y:number,w:number,h:number,scored?:boolean}>} */
     let obstacles = [];
-    let randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
+    /** @type {Array<{x:number,y:number,w:number,h:number,speed:number}>} */
+    let clouds = [];
+    /** 배경 타일 3개 */
+    let bgTiles = []; // {x,y,w,h}
+    let randGap = 0;
+
+    // 이번 런에 고정되는 선택들
+    let currentDinoId = null;    // e.g., "01"
+    let currentObstId = null;    // e.g., "02"
+    let currentBgId = null;      // e.g., "03"
+    let currentCloudId = null;   // e.g., "01"
+
+    // 구름 스폰 타이머
+    let cloudSpawnTimer = 0;
+    let cloudSpawnNext = 0;
 
     // ===============================
-    // 이미지 로더 (있는 파일만 쓰고, 없으면 박스)
+    // 로더
     // ===============================
-    const imageCache = new Map(); // key -> {img, ok:boolean, loaded:boolean}
-    function loadImageOnce(src) {
-      if (imageCache.has(src)) return imageCache.get(src);
-      const entry = { img: new Image(), ok: false, loaded: false };
-      entry.img.onload = () => { entry.ok = true; entry.loaded = true; };
-      entry.img.onerror = () => { entry.ok = false; entry.loaded = true; };
-      entry.img.src = src;
-      imageCache.set(src, entry);
-      return entry;
+    const imageCache = new Map(); // key -> {img, ok, loaded}
+    function loadImageOnce(src){
+      if(imageCache.has(src)) return imageCache.get(src);
+      const e = { img: new Image(), ok: false, loaded: false };
+      e.img.onload = ()=>{ e.ok = true; e.loaded = true; };
+      e.img.onerror = ()=>{ e.ok = false; e.loaded = true; };
+      e.img.src = src;
+      imageCache.set(src, e);
+      return e;
     }
 
-    function pickRandom(arr) { return arr[(Math.random() * arr.length) | 0]; }
-    function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
-    function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-    function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
-      return ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by;
-    }
-
-    // 캐릭터 변형 선택 + 필요한 두 프레임 선로딩
-    function chooseDinoVariant() {
-      if (!CONFIG.DINO_IDS.length) { dino.id = null; return; }
-      dino.id = pickRandom(CONFIG.DINO_IDS);
-      const base = `${CONFIG.DINO_PREFIX}${dino.id}`;
-      loadImageOnce(`${base}_a.png`);
-      loadImageOnce(`${base}_b.png`);
-    }
-
-    // 장애물 생성 시 변형 선택 + 선로딩
-    function chooseObstacleId() {
-      if (!CONFIG.OBST_IDS.length) return null;
-      const id = pickRandom(CONFIG.OBST_IDS);
-      const src = `${CONFIG.OBST_PREFIX}${id}.png`;
-      loadImageOnce(src);
-      return id;
-    }
+    // 유틸
+    const pickRandom = arr => arr[(Math.random()*arr.length)|0];
+    const randInt = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+    const randFloat = (a,b) => Math.random()*(b-a)+a;
+    const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+    const rectsOverlap = (ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
 
     // ===============================
-    // 게임 제어
+    // 선택 & 프리로드 (런 시작마다)
     // ===============================
-    function resetGame() {
+    function chooseRunAssets(){
+      // 캐릭터
+      currentDinoId = pickRandom(CONFIG.DINO_IDS);
+      loadImageOnce(`${CONFIG.DINO_PREFIX}${currentDinoId}_a.png`);
+      loadImageOnce(`${CONFIG.DINO_PREFIX}${currentDinoId}_b.png`);
+      dino.id = currentDinoId;
+
+      // 장애물
+      currentObstId = pickRandom(CONFIG.OBST_IDS);
+      loadImageOnce(`${CONFIG.OBST_PREFIX}${currentObstId}.png`);
+
+      // 배경
+      currentBgId = pickRandom(CONFIG.BG_IDS);
+      loadImageOnce(`${CONFIG.BG_PREFIX}${currentBgId}.png`);
+
+      // 구름
+      currentCloudId = pickRandom(CONFIG.CLOUD_IDS);
+      loadImageOnce(`${CONFIG.CLOUD_PREFIX}${currentCloudId}.png`);
+    }
+
+    // ===============================
+    // 초기화/리셋
+    // ===============================
+    function resetGame(){
       state.running = true; state.dead = false;
-      state.speed = CONFIG.SPEED_START;
-      state.lastTime = performance.now();
-      state.score = 0; state.animTime = 0;
+      state.speed = CONFIG.SPEED_START; state.lastTime = performance.now();
+      state.score = 0; state.animTime = 0; state.distSinceLast = 0;
 
-      dino.y = CONFIG.GROUND_Y - CONFIG.DINO_HEIGHT;
+      dino.x = CONFIG.DINO_X;
+      dino.y = CONFIG.GROUND_Y - dino.h;
       dino.vy = 0; dino.onGround = true;
-      chooseDinoVariant();
 
+      chooseRunAssets();
+
+      // 장애물 & 구름 & 배경 초기화
       obstacles = [];
+      clouds = [];
       randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
+
+      // 배경 타일 3개 세팅
+      bgTiles = [];
+      const w = CONFIG.BG_DRAW_WIDTH, h = CONFIG.BG_DRAW_HEIGHT, y = CONFIG.BG_Y;
+      bgTiles.push({ x: 0,         y, w, h });
+      bgTiles.push({ x: w,         y, w, h });
+      bgTiles.push({ x: w * 2,     y, w, h });
+
+      // 구름 스폰 타이머
+      cloudSpawnTimer = 0;
+      cloudSpawnNext = randFloat(CONFIG.CLOUD_SPAWN_SEC_MIN, CONFIG.CLOUD_SPAWN_SEC_MAX);
 
       overlay.style.display = "none";
       scoreEl.textContent = `점수: ${state.score}`;
@@ -170,9 +237,9 @@
       requestAnimationFrame(loop);
     }
 
-    function gameOver() {
+    function gameOver(){
       state.dead = true; state.running = false;
-      if (state.score > state.highScore) {
+      if(state.score > state.highScore){
         state.highScore = state.score;
         localStorage.setItem(CONFIG.HIGH_SCORE_KEY, String(state.highScore));
       }
@@ -180,136 +247,209 @@
       overlay.style.display = "grid";
     }
 
-    function trySpawnObstacle() {
-      if (state.speed <= 0) return;
-      if (state.distSinceLast < randGap) return;
-
+    // ===============================
+    // 장애물/구름 스폰
+    // ===============================
+    function trySpawnObstacle(){
+      if(state.distSinceLast < randGap) return;
       const w = CONFIG.OBST_WIDTH, h = CONFIG.OBST_HEIGHT;
-      const x = CONFIG.GAME_WIDTH + w;
-      const y = CONFIG.GROUND_Y - h;
-      const id = chooseObstacleId();
-
-      obstacles.push({ x, y, w, h, scored: false, id });
+      obstacles.push({
+        x: CONFIG.GAME_WIDTH + w,
+        y: CONFIG.GROUND_Y - h,
+        w, h, scored:false
+      });
       state.distSinceLast = 0;
       randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
     }
 
-    function addScoreIfPassed(ob) {
-      if (!ob.scored && ob.x + ob.w < dino.x) {
-        ob.scored = true;
-        state.score += CONFIG.SCORE_PER_OBSTACLE;
-        scoreEl.textContent = `점수: ${state.score}`;
-      }
+    function trySpawnCloud(dt){
+      cloudSpawnTimer += dt;
+      if(cloudSpawnTimer < cloudSpawnNext) return;
+
+      cloudSpawnTimer = 0;
+      cloudSpawnNext = randFloat(CONFIG.CLOUD_SPAWN_SEC_MIN, CONFIG.CLOUD_SPAWN_SEC_MAX);
+
+      const y = randInt(CONFIG.CLOUD_Y_MIN, CONFIG.CLOUD_Y_MAX);
+      const speed = randFloat(CONFIG.CLOUD_SPEED_MIN, CONFIG.CLOUD_SPEED_MAX);
+      clouds.push({
+        x: CONFIG.GAME_WIDTH + CONFIG.CLOUD_WIDTH,
+        y, w: CONFIG.CLOUD_WIDTH, h: CONFIG.CLOUD_HEIGHT, speed
+      });
     }
 
-    function jump() {
-      if (!state.running || state.dead) return;
-      if (dino.onGround) {
+    // ===============================
+    // 입력
+    // ===============================
+    window.addEventListener("keydown", (e)=>{
+      if(e.code==="Space" || e.code==="ArrowUp"){ e.preventDefault(); jump(); }
+    }, { passive:false });
+    cvs.addEventListener("pointerdown", ()=>{ if(!state.dead) jump(); });
+    document.getElementById("restartBtn").addEventListener("click", resetGame);
+
+    function jump(){
+      if(!state.running || state.dead) return;
+      if(dino.onGround){
         dino.vy = CONFIG.JUMP_VELOCITY;
         dino.onGround = false;
       }
     }
 
     // ===============================
-    // 입력
-    // ===============================
-    window.addEventListener("keydown", (e) => {
-      if (e.code === "Space" || e.code === "ArrowUp") {
-        e.preventDefault();
-        jump();
-      }
-    }, { passive: false });
-
-    cvs.addEventListener("pointerdown", () => { if (!state.dead) jump(); });
-    restartBtn.addEventListener("click", resetGame);
-
-    // ===============================
     // 루프
     // ===============================
-    function loop(now) {
-      if (!state.running) return;
-
-      const dt = Math.min(0.032, (now - state.lastTime) / 1000);
+    function loop(now){
+      if(!state.running) return;
+      const dt = Math.min(0.032, (now - state.lastTime)/1000);
       state.lastTime = now;
       state.animTime += dt;
 
-      // 가속
+      // 속도 가속
       state.speed = clamp(state.speed + CONFIG.SPEED_ACCEL_PER_SEC * dt, CONFIG.SPEED_START, CONFIG.SPEED_MAX);
 
       // 캐릭터 물리
       dino.vy += CONFIG.GRAVITY * dt;
       dino.y += dino.vy * dt;
       const groundTop = CONFIG.GROUND_Y - dino.h;
-      if (dino.y >= groundTop) { dino.y = groundTop; dino.vy = 0; dino.onGround = true; }
+      if(dino.y >= groundTop){ dino.y = groundTop; dino.vy = 0; dino.onGround = true; }
 
-      // 장애물 이동/스폰
-      state.distSinceLast = (state.distSinceLast || 0) + state.speed * dt;
+      // 장애물/구름/배경 업데이트
+      state.distSinceLast += state.speed * dt;
       trySpawnObstacle();
-
-      for (let i = obstacles.length - 1; i >= 0; i--) {
-        const ob = obstacles[i];
-        ob.x -= state.speed * dt;
-
-        addScoreIfPassed(ob);
-
-        if (rectsOverlap(dino.x, dino.y, dino.w, dino.h, ob.x, ob.y, ob.w, ob.h)) {
-          gameOver(); render(); return;
-        }
-        if (ob.x + ob.w < -50) obstacles.splice(i, 1);
-      }
+      trySpawnCloud(dt);
+      updateObstacles(dt);
+      updateClouds(dt);
+      updateBackground(dt);
 
       render();
       requestAnimationFrame(loop);
     }
 
+    function updateObstacles(dt){
+      for(let i=obstacles.length-1;i>=0;i--){
+        const ob = obstacles[i];
+        ob.x -= state.speed * dt;
+
+        // 득점
+        if(!ob.scored && ob.x + ob.w < dino.x){
+          ob.scored = true;
+          state.score += CONFIG.SCORE_PER_OBSTACLE;
+          scoreEl.textContent = `점수: ${state.score}`;
+        }
+
+        // 충돌
+        if(rectsOverlap(dino.x,dino.y,dino.w,dino.h, ob.x,ob.y,ob.w,ob.h)){
+          gameOver(); return;
+        }
+
+        if(ob.x + ob.w < -50) obstacles.splice(i,1);
+      }
+    }
+
+    function updateClouds(dt){
+      for(let i=clouds.length-1;i>=0;i--){
+        const c = clouds[i];
+        c.x -= c.speed * dt;
+        if(c.x + c.w < -10) clouds.splice(i,1);
+      }
+    }
+
+    function updateBackground(dt){
+      const scroll = state.speed * CONFIG.BG_SCROLL_PARALLAX * dt;
+      const tileW = CONFIG.BG_DRAW_WIDTH;
+      let maxX = -Infinity;
+      for(const t of bgTiles){
+        t.x -= scroll;
+        if(t.x > maxX) maxX = t.x;
+      }
+      // 왼쪽으로 완전히 나간 타일은 오른쪽 끝으로 이동
+      for(const t of bgTiles){
+        if(t.x + tileW < 0){
+          t.x = maxX + tileW;
+          maxX = t.x;
+        }
+      }
+    }
+
     // ===============================
     // 렌더
     // ===============================
-    function render() {
-      // 배경
+    function render(){
       ctx.clearRect(0,0,CONFIG.GAME_WIDTH,CONFIG.GAME_HEIGHT);
+
+      // 배경 레이어 (먼저)
+      drawBackground();
+
+      // 구름
+      for(const c of clouds) drawCloud(c);
+
       // 지면 라인
-      ctx.strokeStyle = "#ddd";
+      ctx.strokeStyle="#ddd";
       ctx.beginPath();
-      ctx.moveTo(0, CONFIG.GROUND_Y + 0.5);
-      ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y + 0.5);
+      ctx.moveTo(0, CONFIG.GROUND_Y+0.5);
+      ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y+0.5);
       ctx.stroke();
 
-      // 캐릭터 (이미지 있으면 drawImage, 아니면 박스)
+      // 캐릭터
       drawDino();
 
       // 장애물
-      for (const ob of obstacles) drawObstacle(ob);
+      for(const ob of obstacles) drawObstacle(ob);
     }
 
-    function drawDino() {
-      const id = dino.id;
-      const frameIndex = Math.floor(state.animTime * CONFIG.DINO_ANIM_FPS) % 2; // 0/1
-      if (id) {
-        const base = `${CONFIG.DINO_PREFIX}${id}`;
-        const key = `${base}_${frameIndex === 0 ? "a" : "b"}.png`;
-        const e = imageCache.get(key) || loadImageOnce(key);
-        if (e.loaded && e.ok) {
-          ctx.drawImage(e.img, dino.x, dino.y, dino.w, dino.h);
-          return;
+    function drawBackground(){
+      const key = `${CONFIG.BG_PREFIX}${currentBgId}.png`;
+      const e = imageCache.get(key) || loadImageOnce(key);
+      for(const t of bgTiles){
+        if(e.loaded && e.ok){
+          ctx.drawImage(e.img, t.x, t.y, t.w, t.h);
+        }else{
+          // 노란 정사각 (타일 중앙)
+          ctx.fillStyle = CONFIG.BG_FALLBACK_COLOR;
+          const s = CONFIG.BG_FALLBACK_SIZE;
+          const cx = t.x + (t.w - s)/2;
+          const cy = t.y + (t.h - s)/2;
+          ctx.fillRect(cx, cy, s, s);
+          // 타일 경계선(디버그 원하면 주석해제)
+          // ctx.strokeStyle="#ffe082"; ctx.strokeRect(t.x,t.y,t.w,t.h);
         }
-        // 로딩 중이거나 실패 → 박스 표시
       }
-      ctx.fillStyle = CONFIG.DINO_FALLBACK_COLOR;
-      ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
     }
 
-    function drawObstacle(ob) {
-      if (ob.id) {
-        const key = `${CONFIG.OBST_PREFIX}${ob.id}.png`;
-        const e = imageCache.get(key) || loadImageOnce(key);
-        if (e.loaded && e.ok) {
-          ctx.drawImage(e.img, ob.x, ob.y, ob.w, ob.h);
-          return;
-        }
+    function drawCloud(c){
+      const key = `${CONFIG.CLOUD_PREFIX}${currentCloudId}.png`;
+      const e = imageCache.get(key) || loadImageOnce(key);
+      if(e.loaded && e.ok){
+        ctx.drawImage(e.img, c.x, c.y, c.w, c.h);
+      }else{
+        ctx.fillStyle = CONFIG.CLOUD_FALLBACK_COLOR;
+        const s = CONFIG.CLOUD_FALLBACK_SIZE;
+        const cx = c.x + (c.w - s)/2;
+        const cy = c.y + (c.h - s)/2;
+        ctx.fillRect(cx, cy, s, s);
       }
-      ctx.fillStyle = CONFIG.OBST_FALLBACK_COLOR;
-      ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+    }
+
+    function drawDino(){
+      const frame = Math.floor(state.animTime * CONFIG.DINO_ANIM_FPS) % 2; // 0/1
+      const key = `${CONFIG.DINO_PREFIX}${currentDinoId}_${frame===0?"a":"b"}.png`;
+      const e = imageCache.get(key) || loadImageOnce(key);
+      if(e.loaded && e.ok){
+        ctx.drawImage(e.img, dino.x, dino.y, dino.w, dino.h);
+      }else{
+        ctx.fillStyle = CONFIG.DINO_FALLBACK_COLOR;
+        ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+      }
+    }
+
+    function drawObstacle(ob){
+      const key = `${CONFIG.OBST_PREFIX}${currentObstId}.png`;
+      const e = imageCache.get(key) || loadImageOnce(key);
+      if(e.loaded && e.ok){
+        ctx.drawImage(e.img, ob.x, ob.y, ob.w, ob.h);
+      }else{
+        ctx.fillStyle = CONFIG.OBST_FALLBACK_COLOR;
+        ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+      }
     }
 
     // ===============================
@@ -317,7 +457,6 @@
     // ===============================
     highScoreEl.textContent = `최고점: ${state.highScore}`;
     resetGame();
-
   </script>
 </body>
 </html>

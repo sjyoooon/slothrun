@@ -3,122 +3,75 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <title>미니 다이노런 (Rect)</title>
+  <title>다이노런 - 이미지/박스 자동 전환</title>
   <style>
-    :root {
-      --bg: #ffffff;
-      --fg: #000000;
-      --danger: #e53935;
-      --hud: #222;
-      --hud-bg: rgba(255,255,255,0.8);
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--fg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, Apple SD Gothic Neo, "맑은 고딕", sans-serif;
-      display: grid;
-      place-items: center;
-      height: 100dvh;
-    }
-    .wrap {
-      position: relative;
-      width: min(960px, 100vw);
-      padding: 12px;
-    }
-    canvas {
-      width: 100%;
-      height: auto;
-      display: block;
-      border: 1px solid #ddd;
-      background: var(--bg);
-      touch-action: manipulation;
-    }
-    .hud {
-      pointer-events: none;
-      position: absolute;
-      top: 16px; left: 16px; right: 16px;
-      display: flex; justify-content: space-between; align-items: center;
-      font-weight: 700; font-variant-numeric: tabular-nums;
-      color: var(--hud);
-      text-shadow: 0 1px 0 #fff;
-    }
-    .badge {
-      background: var(--hud-bg);
-      padding: 6px 10px;
-      border-radius: 8px;
-      border: 1px solid #e6e6e6;
-    }
-    .center-ui {
-      position: absolute; inset: 0;
-      display: grid; place-items: center;
-    }
-    .btn {
-      appearance: none; border: 0; cursor: pointer;
-      padding: 12px 16px; border-radius: 10px;
-      background: #111; color: #fff; font-weight: 700;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .btn:active { transform: translateY(1px); }
-    .tip {
-      position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-      font-size: 12px; opacity: .65;
-      background: var(--hud-bg); padding: 4px 8px; border-radius: 6px; border: 1px solid #eee;
-    }
+    body { margin: 0; background: #fff; display: grid; place-items: center; height: 100dvh; font-family: system-ui, sans-serif; }
+    .wrap { position: relative; width: min(960px, 100vw); padding: 12px; }
+    canvas { width: 100%; height: auto; border: 1px solid #ddd; background: #fff; touch-action: manipulation; display: block; }
+    .hud { pointer-events: none; position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .badge { background: rgba(255,255,255,.85); border: 1px solid #eee; padding: 6px 10px; border-radius: 8px; }
+    #overlay { position: absolute; inset: 0; display: none; place-items: center; }
+    button { padding: 12px 16px; border: 0; border-radius: 10px; background: #111; color: #fff; font-weight: 700; cursor: pointer; }
+    button:active { transform: translateY(1px); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- 좌상단: 최고점 / 우상단: 현재점수 -->
     <div class="hud">
       <div id="highScore" class="badge">최고점: 0</div>
       <div id="score" class="badge">점수: 0</div>
     </div>
-
-    <canvas id="game" width="900" height="260" aria-label="Dino Run"></canvas>
-
-    <div class="center-ui" id="overlay" style="display:none;">
-      <button id="restartBtn" class="btn">재시작</button>
-      <div class="tip">점프: 스페이스/↑키 또는 화면 탭</div>
-    </div>
+    <canvas id="game" width="900" height="260"></canvas>
+    <div id="overlay"><button id="restartBtn">재시작</button></div>
   </div>
 
   <script>
     // ===============================
-    // 🔧 설정값: 여기만 수정하면 됨
+    // 🔧 설정 (여기만 손대면 됨)
     // ===============================
     const CONFIG = {
       GAME_WIDTH: 900,
       GAME_HEIGHT: 260,
 
-      GROUND_Y: 220,                // 지면 Y (캔버스 상단 기준)
-      DINO_X: 60,                   // 공룡 시작 X
+      // 캐릭터 크기/위치/물리
+      GROUND_Y: 220,
+      DINO_X: 60,
       DINO_WIDTH: 36,
       DINO_HEIGHT: 42,
-      DINO_COLOR: "#000000",
+      DINO_FALLBACK_COLOR: "#000000",
+      JUMP_VELOCITY: -520,
+      GRAVITY: 1600,
 
-      JUMP_VELOCITY: -520,          // 점프 초기 속도 (px/s, 음수는 위로)
-      GRAVITY: 1600,                // 중력 가속도 (px/s^2)
+      // 이동 속도
+      SPEED_START: 280,
+      SPEED_ACCEL_PER_SEC: 18,
+      SPEED_MAX: 780,
 
-      SPEED_START: 280,             // 초기 진행 속도 (px/s)
-      SPEED_ACCEL_PER_SEC: 18,      // 초당 가속 (px/s^2)
-      SPEED_MAX: 780,               // 최대 속도 (상한)
+      // 장애물 간격/크기(히트박스 = 렌더 크기)
+      OBST_MIN_GAP: 220,
+      OBST_MAX_GAP: 420,
+      OBST_WIDTH: 30,
+      OBST_HEIGHT: 50,
+      OBST_FALLBACK_COLOR: "#e53935",
 
-      OBST_MIN_GAP: 220,            // 장애물 간 최소 간격 (px)
-      OBST_MAX_GAP: 420,            // 장애물 간 최대 간격 (px)
-      OBST_MIN_WIDTH: 16,
-      OBST_MAX_WIDTH: 36,
-      OBST_MIN_HEIGHT: 30,
-      OBST_MAX_HEIGHT: 60,
-      OBST_COLOR: "#e53935",
+      // 점수
+      SCORE_PER_OBSTACLE: 10,
+      HIGH_SCORE_KEY: "dinoHighScore_imgRect_v1",
 
-      SCORE_PER_OBSTACLE: 10,       // 장애물 1개 통과당 점수
-      HIGH_SCORE_KEY: "dinoHighScoreRectV1"
+      // 🔽 파일 세트 지정 (원하는 만큼 추가/삭제)
+      // 캐릭터: sloth{ID}_a.png & sloth{ID}_b.png (같은 경로)
+      DINO_IDS: ["01", "02", "03"],
+      DINO_PREFIX: "sloth",
+      // 장애물: prop{ID}.png
+      OBST_IDS: ["01", "02", "03"],
+      OBST_PREFIX: "prop",
+
+      // 애니메이션
+      DINO_ANIM_FPS: 8, // 초당 프레임
     };
 
     // ===============================
-    // 내부 상태
+    // 캔버스/상태
     // ===============================
     const cvs = document.getElementById("game");
     const ctx = cvs.getContext("2d");
@@ -127,7 +80,6 @@
     const overlay = document.getElementById("overlay");
     const restartBtn = document.getElementById("restartBtn");
 
-    // 캔버스 고정 해상도 유지
     cvs.width = CONFIG.GAME_WIDTH;
     cvs.height = CONFIG.GAME_HEIGHT;
 
@@ -135,66 +87,91 @@
       running: false,
       dead: false,
       speed: CONFIG.SPEED_START,
-      time: 0,
       lastTime: 0,
-      distSinceLast: 0,
       score: 0,
-      highScore: Number(localStorage.getItem(CONFIG.HIGH_SCORE_KEY) || 0)
+      highScore: Number(localStorage.getItem(CONFIG.HIGH_SCORE_KEY) || 0),
+      animTime: 0, // 캐릭터 2프레임 전환용
     };
 
-    // 플레이어(공룡) & 장애물
     const dino = {
       x: CONFIG.DINO_X,
       y: CONFIG.GROUND_Y - CONFIG.DINO_HEIGHT,
       w: CONFIG.DINO_WIDTH,
       h: CONFIG.DINO_HEIGHT,
       vy: 0,
-      onGround: true
+      onGround: true,
+      // 현재 선택된 변형 ID (e.g., "01")
+      id: null,
     };
 
-    /** @type {Array<{x:number,y:number,w:number,h:number,scored?:boolean}>} */
+    /** 장애물: {x,y,w,h,scored:boolean,id:string|null} */
     let obstacles = [];
+    let randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
 
     // ===============================
-    // 유틸
+    // 이미지 로더 (있는 파일만 쓰고, 없으면 박스)
     // ===============================
-    function randInt(a, b) {
-      return Math.floor(Math.random() * (b - a + 1)) + a;
+    const imageCache = new Map(); // key -> {img, ok:boolean, loaded:boolean}
+    function loadImageOnce(src) {
+      if (imageCache.has(src)) return imageCache.get(src);
+      const entry = { img: new Image(), ok: false, loaded: false };
+      entry.img.onload = () => { entry.ok = true; entry.loaded = true; };
+      entry.img.onerror = () => { entry.ok = false; entry.loaded = true; };
+      entry.img.src = src;
+      imageCache.set(src, entry);
+      return entry;
     }
 
-    function clamp(v, a, b) {
-      return Math.max(a, Math.min(b, v));
+    function pickRandom(arr) { return arr[(Math.random() * arr.length) | 0]; }
+    function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+    function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+    function rectsOverlap(ax,ay,aw,ah,bx,by,bw,bh){
+      return ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by;
     }
 
-    function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
-      return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    // 캐릭터 변형 선택 + 필요한 두 프레임 선로딩
+    function chooseDinoVariant() {
+      if (!CONFIG.DINO_IDS.length) { dino.id = null; return; }
+      dino.id = pickRandom(CONFIG.DINO_IDS);
+      const base = `${CONFIG.DINO_PREFIX}${dino.id}`;
+      loadImageOnce(`${base}_a.png`);
+      loadImageOnce(`${base}_b.png`);
     }
 
+    // 장애물 생성 시 변형 선택 + 선로딩
+    function chooseObstacleId() {
+      if (!CONFIG.OBST_IDS.length) return null;
+      const id = pickRandom(CONFIG.OBST_IDS);
+      const src = `${CONFIG.OBST_PREFIX}${id}.png`;
+      loadImageOnce(src);
+      return id;
+    }
+
+    // ===============================
+    // 게임 제어
+    // ===============================
     function resetGame() {
-      state.running = true;
-      state.dead = false;
+      state.running = true; state.dead = false;
       state.speed = CONFIG.SPEED_START;
-      state.time = 0;
       state.lastTime = performance.now();
-      state.distSinceLast = 0;
-      state.score = 0;
+      state.score = 0; state.animTime = 0;
 
-      dino.x = CONFIG.DINO_X;
       dino.y = CONFIG.GROUND_Y - CONFIG.DINO_HEIGHT;
-      dino.vy = 0;
-      dino.onGround = true;
+      dino.vy = 0; dino.onGround = true;
+      chooseDinoVariant();
 
       obstacles = [];
+      randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
+
       overlay.style.display = "none";
       scoreEl.textContent = `점수: ${state.score}`;
       highScoreEl.textContent = `최고점: ${state.highScore}`;
+
       requestAnimationFrame(loop);
     }
 
     function gameOver() {
-      state.dead = true;
-      state.running = false;
-
+      state.dead = true; state.running = false;
       if (state.score > state.highScore) {
         state.highScore = state.score;
         localStorage.setItem(CONFIG.HIGH_SCORE_KEY, String(state.highScore));
@@ -204,22 +181,20 @@
     }
 
     function trySpawnObstacle() {
-      // 일정 거리 이상 진행 시 스폰
+      if (state.speed <= 0) return;
       if (state.distSinceLast < randGap) return;
 
-      const w = randInt(CONFIG.OBST_MIN_WIDTH, CONFIG.OBST_MAX_WIDTH);
-      const h = randInt(CONFIG.OBST_MIN_HEIGHT, CONFIG.OBST_MAX_HEIGHT);
-      const x = CONFIG.GAME_WIDTH + w; // 오른쪽 바깥에서 등장
+      const w = CONFIG.OBST_WIDTH, h = CONFIG.OBST_HEIGHT;
+      const x = CONFIG.GAME_WIDTH + w;
       const y = CONFIG.GROUND_Y - h;
+      const id = chooseObstacleId();
 
-      obstacles.push({ x, y, w, h, scored: false });
+      obstacles.push({ x, y, w, h, scored: false, id });
       state.distSinceLast = 0;
-      // 다음 간격 갱신
       randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
     }
 
     function addScoreIfPassed(ob) {
-      // 장애물이 공룡의 오른쪽을 완전히 지나쳤을 때 한번만 득점
       if (!ob.scored && ob.x + ob.w < dino.x) {
         ob.scored = true;
         state.score += CONFIG.SCORE_PER_OBSTACLE;
@@ -235,9 +210,6 @@
       }
     }
 
-    // 초기 스폰 간격
-    let randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
-
     // ===============================
     // 입력
     // ===============================
@@ -248,11 +220,7 @@
       }
     }, { passive: false });
 
-    cvs.addEventListener("pointerdown", () => {
-      if (state.dead) return; // 죽었을 땐 버튼으로만 재시작
-      jump();
-    });
-
+    cvs.addEventListener("pointerdown", () => { if (!state.dead) jump(); });
     restartBtn.addEventListener("click", resetGame);
 
     // ===============================
@@ -261,27 +229,21 @@
     function loop(now) {
       if (!state.running) return;
 
-      const dt = Math.min(0.032, (now - state.lastTime) / 1000); // 최대 32ms로 클램프
+      const dt = Math.min(0.032, (now - state.lastTime) / 1000);
       state.lastTime = now;
-      state.time += dt;
+      state.animTime += dt;
 
-      // 속도 가속
+      // 가속
       state.speed = clamp(state.speed + CONFIG.SPEED_ACCEL_PER_SEC * dt, CONFIG.SPEED_START, CONFIG.SPEED_MAX);
 
-      // 물리 업데이트 (점프/중력)
+      // 캐릭터 물리
       dino.vy += CONFIG.GRAVITY * dt;
       dino.y += dino.vy * dt;
-
-      // 지면 충돌
       const groundTop = CONFIG.GROUND_Y - dino.h;
-      if (dino.y >= groundTop) {
-        dino.y = groundTop;
-        dino.vy = 0;
-        dino.onGround = true;
-      }
+      if (dino.y >= groundTop) { dino.y = groundTop; dino.vy = 0; dino.onGround = true; }
 
       // 장애물 이동/스폰
-      state.distSinceLast += state.speed * dt;
+      state.distSinceLast = (state.distSinceLast || 0) + state.speed * dt;
       trySpawnObstacle();
 
       for (let i = obstacles.length - 1; i >= 0; i--) {
@@ -290,14 +252,9 @@
 
         addScoreIfPassed(ob);
 
-        // 충돌 체크 (사각형 히트박스)
         if (rectsOverlap(dino.x, dino.y, dino.w, dino.h, ob.x, ob.y, ob.w, ob.h)) {
-          gameOver();
-          render(); // 마지막 프레임 그려주기
-          return;
+          gameOver(); render(); return;
         }
-
-        // 화면 밖 제거
         if (ob.x + ob.w < -50) obstacles.splice(i, 1);
       }
 
@@ -310,39 +267,57 @@
     // ===============================
     function render() {
       // 배경
-      ctx.clearRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
-
+      ctx.clearRect(0,0,CONFIG.GAME_WIDTH,CONFIG.GAME_HEIGHT);
       // 지면 라인
       ctx.strokeStyle = "#ddd";
-      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, CONFIG.GROUND_Y + 0.5);
       ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y + 0.5);
       ctx.stroke();
 
-      // 공룡 (검정 직사각형)
-      ctx.fillStyle = CONFIG.DINO_COLOR;
-      ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+      // 캐릭터 (이미지 있으면 drawImage, 아니면 박스)
+      drawDino();
 
-      // 장애물 (빨간 직사각형)
-      ctx.fillStyle = CONFIG.OBST_COLOR;
-      for (const ob of obstacles) {
-        ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
-      }
-
-      // (선택) 속도 표시 가이드 - 디버그 원하면 주석 해제
-      // ctx.fillStyle = "#666";
-      // ctx.fillText(`speed: ${state.speed.toFixed(0)} px/s`, 12, CONFIG.GAME_HEIGHT - 12);
+      // 장애물
+      for (const ob of obstacles) drawObstacle(ob);
     }
 
-    // 최초 진입 세팅
-    highScoreEl.textContent = `최고점: ${state.highScore}`;
-    scoreEl.textContent = `점수: 0`;
+    function drawDino() {
+      const id = dino.id;
+      const frameIndex = Math.floor(state.animTime * CONFIG.DINO_ANIM_FPS) % 2; // 0/1
+      if (id) {
+        const base = `${CONFIG.DINO_PREFIX}${id}`;
+        const key = `${base}_${frameIndex === 0 ? "a" : "b"}.png`;
+        const e = imageCache.get(key) || loadImageOnce(key);
+        if (e.loaded && e.ok) {
+          ctx.drawImage(e.img, dino.x, dino.y, dino.w, dino.h);
+          return;
+        }
+        // 로딩 중이거나 실패 → 박스 표시
+      }
+      ctx.fillStyle = CONFIG.DINO_FALLBACK_COLOR;
+      ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+    }
 
-    // 바로 시작
+    function drawObstacle(ob) {
+      if (ob.id) {
+        const key = `${CONFIG.OBST_PREFIX}${ob.id}.png`;
+        const e = imageCache.get(key) || loadImageOnce(key);
+        if (e.loaded && e.ok) {
+          ctx.drawImage(e.img, ob.x, ob.y, ob.w, ob.h);
+          return;
+        }
+      }
+      ctx.fillStyle = CONFIG.OBST_FALLBACK_COLOR;
+      ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+    }
+
+    // ===============================
+    // 시작
+    // ===============================
+    highScoreEl.textContent = `최고점: ${state.highScore}`;
     resetGame();
+
   </script>
 </body>
 </html>

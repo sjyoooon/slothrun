@@ -209,18 +209,82 @@
     const imageCache = new Map();
     function loadImageOnce(src){
       if(imageCache.has(src)) return imageCache.get(src);
-      const e = { img:new Image(), ok:false, loaded:false, width:0, height:0 };
+      const e = { img:new Image(), ok:false, loaded:false, width:0, height:0, pixelData:null };
       e.img.onload = ()=>{
         e.ok=true;
         e.loaded=true;
         e.width = e.img.naturalWidth;
         e.height = e.img.naturalHeight;
+        // Extract pixel data for alpha-based collision detection
+        extractPixelData(e);
       };
       e.img.onerror = ()=>{ e.ok=false; e.loaded=true; };
       e.img.src = src;
       imageCache.set(src, e);
       return e;
     }
+
+    // Extract pixel data from loaded image for alpha-based collision
+    function extractPixelData(entry){
+      if(!entry.ok || !entry.img) return;
+      try{
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = entry.width;
+        tempCanvas.height = entry.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(entry.img, 0, 0);
+        entry.pixelData = tempCtx.getImageData(0, 0, entry.width, entry.height);
+      }catch(err){
+        // CORS or other issues - fallback to rect collision
+        console.warn('Could not extract pixel data:', err);
+      }
+    }
+
+    // Check if a pixel has non-transparent alpha (>128 = opaque enough)
+    function isPixelOpaque(imageData, x, y){
+      if(!imageData || x<0 || y<0 || x>=imageData.width || y>=imageData.height) return false;
+      const idx = (Math.floor(y) * imageData.width + Math.floor(x)) * 4;
+      return imageData.data[idx + 3] > 128; // alpha channel
+    }
+
+    // Alpha-based collision detection between two images
+    function alphaCollision(ax, ay, aw, ah, aEntry, bx, by, bw, bh, bEntry){
+      // Calculate overlap rectangle
+      const overlapX = Math.max(ax, bx);
+      const overlapY = Math.max(ay, by);
+      const overlapRight = Math.min(ax + aw, bx + bw);
+      const overlapBottom = Math.min(ay + ah, by + bh);
+      const overlapW = overlapRight - overlapX;
+      const overlapH = overlapBottom - overlapY;
+
+      if(overlapW <= 0 || overlapH <= 0) return false;
+
+      // Sample pixels in the overlap region (check every few pixels for performance)
+      const step = 3; // Check every 3 pixels
+      for(let dy = 0; dy < overlapH; dy += step){
+        for(let dx = 0; dx < overlapW; dx += step){
+          const worldX = overlapX + dx;
+          const worldY = overlapY + dy;
+
+          // Map to image A coordinates
+          const aImgX = ((worldX - ax) / aw) * aEntry.width;
+          const aImgY = ((worldY - ay) / ah) * aEntry.height;
+
+          // Map to image B coordinates
+          const bImgX = ((worldX - bx) / bw) * bEntry.width;
+          const bImgY = ((worldY - by) / bh) * bEntry.height;
+
+          // Check if both pixels are opaque
+          if(isPixelOpaque(aEntry.pixelData, aImgX, aImgY) &&
+             isPixelOpaque(bEntry.pixelData, bImgX, bImgY)){
+            return true; // Collision detected!
+          }
+        }
+      }
+
+      return false; // No opaque pixel overlap
+    }
+
     const pick = arr => arr[(Math.random()*arr.length)|0];
     const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
     const randFloat = (a,b)=>Math.random()*(b-a)+a;
@@ -495,7 +559,38 @@
           state.score += CONFIG.SCORE_PER_OBSTACLE;
           scoreEl.textContent = `SCORE: ${state.score}`;
         }
+
+        // Check collision with alpha-based detection if images are loaded
+        let collision = false;
         if(rectsOverlap(dino.x,dino.y,dino.w,dino.h, ob.x,ob.y,ob.w,ob.h)){
+          // Get current dino frame image
+          const frame = Math.floor(state.animTime * 8) % 2;
+          const dinoKey = `${CONFIG.DINO_PREFIX}${curDinoId}_${frame===0?"a":"b"}.png`;
+          const dinoEntry = imageCache.get(dinoKey);
+
+          // Get obstacle image
+          const isAir = !!ob.air;
+          const obKey = isAir
+            ? `${CONFIG.AOBST_PREFIX}${curAirId}.png`
+            : `${CONFIG.OBST_PREFIX}${curGroundId}.png`;
+          const obEntry = imageCache.get(obKey);
+
+          // Use alpha collision if both images have pixel data
+          if(dinoEntry && dinoEntry.pixelData && obEntry && obEntry.pixelData){
+            // Calculate actual draw dimensions for dino
+            const dinoDrawW = dinoEntry.width * CONFIG.DINO_IMAGE_SCALE;
+            const dinoDrawH = dinoEntry.height * CONFIG.DINO_IMAGE_SCALE;
+            collision = alphaCollision(
+              dino.x, dino.y, dinoDrawW, dinoDrawH, dinoEntry,
+              ob.x, ob.y, ob.w, ob.h, obEntry
+            );
+          }else{
+            // Fallback to rectangle collision
+            collision = true;
+          }
+        }
+
+        if(collision){
           gameOver(); render(); return;
         }
         if(ob.x + ob.w < -50) obstacles.splice(i,1);

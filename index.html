@@ -103,9 +103,18 @@
       OBST_PREFIX: "prop",      OBST_IDS: ["01"],     // ground:  prop01.png ...
       AOBST_PREFIX: "propair",  AOBST_IDS: ["01","02","03"],    // air:     propair01.png ...
 
+      // Image scale multipliers (applied to actual image size)
+      DINO_IMAGE_SCALE: 1.0,     // 1.0 = 100%, 0.5 = 50%, 2.0 = 200%, etc.
+      OBST_IMAGE_SCALE: 1.0,
+      AOBST_IMAGE_SCALE: 1.0,
+
       // Fallbacks (when images missing)
       DINO_FALLBACK_COLOR: "#000000",
       OBST_FALLBACK_COLOR: "#e53935",
+
+      // Feature toggles
+      ENABLE_AIR_OBSTACLES: false,      // Enable/disable air obstacles
+      ENABLE_SCROLL_BACKGROUND: false,  // Enable/disable parallax background layers
 
       // ===== 4-Layer Parallax Background =====
       // Layer 1: Far Background (원경 - 가장 느림)
@@ -377,16 +386,24 @@
     function trySpawnObstacle(speed){
       if(state.distSinceLast < randGap) return;
 
-      const useAir = (randInt(1,100) <= CONFIG.AIR_OBST_PROB);
+      // If air obstacles disabled, only spawn ground obstacles
+      const useAir = CONFIG.ENABLE_AIR_OBSTACLES && (randInt(1,100) <= CONFIG.AIR_OBST_PROB);
       const key = useAir
         ? `${CONFIG.AOBST_PREFIX}${curAirId}.png`
         : `${CONFIG.OBST_PREFIX}${curGroundId}.png`;
 
       const e = imageCache.get(key) || loadImageOnce(key);
 
-      // Use image size if loaded, otherwise use default size
-      const w = (e.loaded && e.ok && e.width > 0) ? e.width : CONFIG.OBST_WIDTH;
-      const h = (e.loaded && e.ok && e.height > 0) ? e.height : CONFIG.OBST_HEIGHT;
+      // Use original image size * scale if loaded, otherwise use fallback size
+      let w, h;
+      if(e.loaded && e.ok && e.width > 0 && e.height > 0){
+        const scale = useAir ? CONFIG.AOBST_IMAGE_SCALE : CONFIG.OBST_IMAGE_SCALE;
+        w = e.width * scale;
+        h = e.height * scale;
+      }else{
+        w = CONFIG.OBST_WIDTH;
+        h = CONFIG.OBST_HEIGHT;
+      }
 
       if(useAir){
         obstacles.push({ x: CONFIG.GAME_WIDTH + w, y: CONFIG.AIR_OBST_Y, w, h, scored:false, air:true });
@@ -500,11 +517,13 @@
     function render(){
       ctx.clearRect(0,0,CONFIG.GAME_WIDTH,CONFIG.GAME_HEIGHT);
 
-      // 4 parallax layers (back to front)
-      layerFarAdjusted = drawLayer(layerFarTiles, CONFIG.LAYER_FAR_PREFIX, curLayerFarId, CONFIG.LAYER_FAR_FALLBACK_ALPHA, CONFIG.LAYER_FAR_DRAW_HEIGHT, layerFarAdjusted);
-      layerBgAdjusted = drawLayer(layerBgTiles, CONFIG.LAYER_BG_PREFIX, curLayerBgId, CONFIG.LAYER_BG_FALLBACK_ALPHA, CONFIG.LAYER_BG_DRAW_HEIGHT, layerBgAdjusted);
-      layerMidAdjusted = drawLayer(layerMidTiles, CONFIG.LAYER_MID_PREFIX, curLayerMidId, CONFIG.LAYER_MID_FALLBACK_ALPHA, CONFIG.LAYER_MID_DRAW_HEIGHT, layerMidAdjusted);
-      layerForeAdjusted = drawLayer(layerForeTiles, CONFIG.LAYER_FORE_PREFIX, curLayerForeId, CONFIG.LAYER_FORE_FALLBACK_ALPHA, CONFIG.LAYER_FORE_DRAW_HEIGHT, layerForeAdjusted);
+      // 4 parallax layers (back to front) - only if enabled
+      if(CONFIG.ENABLE_SCROLL_BACKGROUND){
+        layerFarAdjusted = drawLayer(layerFarTiles, CONFIG.LAYER_FAR_PREFIX, curLayerFarId, CONFIG.LAYER_FAR_FALLBACK_ALPHA, CONFIG.LAYER_FAR_DRAW_HEIGHT, layerFarAdjusted);
+        layerBgAdjusted = drawLayer(layerBgTiles, CONFIG.LAYER_BG_PREFIX, curLayerBgId, CONFIG.LAYER_BG_FALLBACK_ALPHA, CONFIG.LAYER_BG_DRAW_HEIGHT, layerBgAdjusted);
+        layerMidAdjusted = drawLayer(layerMidTiles, CONFIG.LAYER_MID_PREFIX, curLayerMidId, CONFIG.LAYER_MID_FALLBACK_ALPHA, CONFIG.LAYER_MID_DRAW_HEIGHT, layerMidAdjusted);
+        layerForeAdjusted = drawLayer(layerForeTiles, CONFIG.LAYER_FORE_PREFIX, curLayerForeId, CONFIG.LAYER_FORE_FALLBACK_ALPHA, CONFIG.LAYER_FORE_DRAW_HEIGHT, layerForeAdjusted);
+      }
 
       // Ground line
       ctx.strokeStyle="#ddd";
@@ -552,8 +571,12 @@
       const key = `${CONFIG.DINO_PREFIX}${curDinoId}_${frame===0?"a":"b"}.png`;
       const e = imageCache.get(key) || loadImageOnce(key);
       if(e.loaded && e.ok){
-        ctx.drawImage(e.img, dino.x, dino.y, dino.w, dino.h);
+        // Use original image size * scale
+        const w = e.width * CONFIG.DINO_IMAGE_SCALE;
+        const h = e.height * CONFIG.DINO_IMAGE_SCALE;
+        ctx.drawImage(e.img, dino.x, dino.y, w, h);
       }else{
+        // Fallback: use CONFIG size
         ctx.fillStyle = CONFIG.DINO_FALLBACK_COLOR;
         ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
       }
@@ -566,8 +589,10 @@
         : `${CONFIG.OBST_PREFIX}${curGroundId}.png`;
       const e = imageCache.get(key) || loadImageOnce(key);
       if(e.loaded && e.ok){
+        // Use original image size * scale (already calculated in spawn)
         ctx.drawImage(e.img, ob.x, ob.y, ob.w, ob.h);
       }else{
+        // Fallback: use obstacle's stored size
         ctx.fillStyle = CONFIG.OBST_FALLBACK_COLOR;
         ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
       }

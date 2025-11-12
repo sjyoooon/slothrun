@@ -31,6 +31,15 @@
       height: 100dvh;
     }
 
+    .game-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
     canvas {
       width: 100%;
       height: auto;
@@ -44,9 +53,10 @@
     .hud {
       pointer-events: none;
       position: absolute;
-      top: 12px; left: 12px; right: 12px;
+      top: 16px; left: 16px; right: 16px;
       display: flex; justify-content: space-between;
       font-weight: 700; font-variant-numeric: tabular-nums;
+      z-index: 10;
     }
     .badge {
       background: rgba(255,255,255,.85);
@@ -56,31 +66,40 @@
     }
 
     #overlay {
-      position: absolute; inset: 0;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: 0;
       display: none;
-      place-items: center;
-      pointer-events: auto;      /* allow clicking the button */
+      align-items: flex-end;
+      justify-content: center;
+      pointer-events: none;
     }
     #restartBtn {
       appearance: none; border: 0; border-radius: 10px;
       background: #111; color: #fff; font-weight: 700; cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,.15);
       display: inline-grid; place-items: center;
+      pointer-events: auto;
+      position: relative;
     }
     #restartBtn:active { transform: translateY(1px); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hud">
-      <div id="highScore" class="badge">HIGH SCORE: 0</div>
-      <div id="score" class="badge">SCORE: 0</div>
-    </div>
+    <div class="game-container">
+      <div class="hud">
+        <div id="highScore" class="badge">HIGH SCORE: 0</div>
+        <div id="score" class="badge">SCORE: 0</div>
+      </div>
 
-    <canvas id="game" width="900" height="260" aria-label="Dino Run"></canvas>
+      <canvas id="game" width="900" height="260" aria-label="Dino Run"></canvas>
 
-    <div id="overlay">
-      <button id="restartBtn" aria-label="Restart">Restart</button>
+      <div id="overlay">
+        <button id="restartBtn" aria-label="Restart">Restart</button>
+      </div>
     </div>
   </div>
 
@@ -186,12 +205,20 @@
       // ===== Restart button size =====
       RESTART_BTN_WIDTH: 140, // px
       RESTART_BTN_HEIGHT: 48, // px
+      RESTART_BTN_OFFSET_Y: 20, // px from bottom of game area (outside)
 
       // ===== Lyrics spawn system =====
       LYRICS_TEXT: "SLOTH RUN   KEEP GOING   NEVER STOP",
       LYRICS_FONT_SIZE: 24,
       LYRICS_SPACE_MULTIPLIER: 1.5,
-      LYRICS_Y: 200  // Y position for spawned lyrics
+      LYRICS_Y: 30,  // Y position for spawned lyrics (above game area)
+
+      // ===== Finish message (displayed on character when game ends) =====
+      FINISH_MESSAGE: "I'm full",
+      FINISH_MESSAGE_OFFSET_X: 0,   // px offset from character center
+      FINISH_MESSAGE_OFFSET_Y: -50, // px offset from character top (negative = above)
+      FINISH_MESSAGE_FONT_SIZE: 28,
+      FINISH_MESSAGE_COLOR: "#ff6b35"
     };
 
     // ===============================
@@ -205,9 +232,10 @@
     const restartBtn = document.getElementById("restartBtn");
     cvs.width = CONFIG.GAME_WIDTH; cvs.height = CONFIG.GAME_HEIGHT;
 
-    // Apply restart button size from CONFIG
+    // Apply restart button size and position from CONFIG
     restartBtn.style.width = CONFIG.RESTART_BTN_WIDTH + "px";
     restartBtn.style.height = CONFIG.RESTART_BTN_HEIGHT + "px";
+    restartBtn.style.bottom = CONFIG.RESTART_BTN_OFFSET_Y + "px";
 
     // ===============================
     // Helpers
@@ -690,6 +718,19 @@
       ctx.fillStyle = "#000";
       for(const l of letters){
         ctx.fillText(l.char, l.x, l.y);
+      }
+
+      // Finish message (displayed on character when game ends)
+      if(state.dead){
+        ctx.font = `bold ${CONFIG.FINISH_MESSAGE_FONT_SIZE}px Arial`;
+        ctx.fillStyle = CONFIG.FINISH_MESSAGE_COLOR;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        const msgX = dino.x + dino.w/2 + CONFIG.FINISH_MESSAGE_OFFSET_X;
+        const msgY = dino.y + CONFIG.FINISH_MESSAGE_OFFSET_Y;
+        ctx.fillText(CONFIG.FINISH_MESSAGE, msgX, msgY);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
       }
     }
 

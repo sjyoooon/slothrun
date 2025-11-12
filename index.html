@@ -185,7 +185,13 @@
 
       // ===== Restart button size =====
       RESTART_BTN_WIDTH: 140, // px
-      RESTART_BTN_HEIGHT: 48  // px
+      RESTART_BTN_HEIGHT: 48, // px
+
+      // ===== Lyrics spawn system =====
+      LYRICS_TEXT: "SLOTH RUN   KEEP GOING   NEVER STOP",
+      LYRICS_FONT_SIZE: 24,
+      LYRICS_SPACE_MULTIPLIER: 1.5,
+      LYRICS_Y: 200  // Y position for spawned lyrics
     };
 
     // ===============================
@@ -337,6 +343,10 @@
     let layerFarAdjusted=false, layerBgAdjusted=false, layerMidAdjusted=false, layerForeAdjusted=false;
     let randGap=0;
 
+    // Lyrics spawn system
+    let letters=[]; // {char, x, y, w, speed}
+    let lyricsIndex=0, elapsedTime=0, nextSpawnTime=0, baseInterval=0;
+
     // Variable jump precompute
     const v0_min = Math.sqrt(2*CONFIG.GRAVITY*CONFIG.JUMP_MIN_HEIGHT);
     const v0_max = Math.sqrt(2*CONFIG.GRAVITY*CONFIG.JUMP_MAX_HEIGHT);
@@ -373,6 +383,13 @@
       layerFarAdjusted=false; layerBgAdjusted=false;
       layerMidAdjusted=false; layerForeAdjusted=false;
       randGap = randInt(CONFIG.OBST_MIN_GAP, CONFIG.OBST_MAX_GAP);
+
+      // Lyrics system initialization
+      letters.length = 0;
+      lyricsIndex = 0;
+      elapsedTime = 0;
+      nextSpawnTime = 0;
+      baseInterval = CONFIG.LYRICS_FONT_SIZE / CONFIG.SPEED_BASE;
 
       // Initialize 4 parallax layers (3 tiles each for seamless scrolling)
       initLayerTiles(layerFarTiles, CONFIG.LAYER_FAR_DRAW_WIDTH, CONFIG.LAYER_FAR_DRAW_HEIGHT, CONFIG.LAYER_FAR_Y);
@@ -549,6 +566,33 @@
       // Spawns
       trySpawnObstacle(speed);
 
+      // Lyrics spawn system
+      elapsedTime += dt;
+      while(lyricsIndex < CONFIG.LYRICS_TEXT.length && elapsedTime >= nextSpawnTime){
+        const ch = CONFIG.LYRICS_TEXT[lyricsIndex++];
+        if(ch === " "){
+          nextSpawnTime += baseInterval * CONFIG.LYRICS_SPACE_MULTIPLIER;
+          continue;
+        }
+        letters.push({
+          char: ch,
+          x: CONFIG.GAME_WIDTH + CONFIG.LYRICS_FONT_SIZE,
+          y: CONFIG.LYRICS_Y,
+          w: CONFIG.LYRICS_FONT_SIZE,
+          speed: speed
+        });
+        nextSpawnTime += baseInterval;
+      }
+
+      // Lyrics update
+      for(let i = letters.length - 1; i >= 0; i--){
+        const letter = letters[i];
+        letter.x -= speed * dt;
+        if(letter.x + letter.w < -10){
+          letters.splice(i, 1);
+        }
+      }
+
       // Obstacles update
       for(let i=obstacles.length-1;i>=0;i--){
         const ob = obstacles[i];
@@ -640,6 +684,13 @@
 
       // Obstacles
       for(const ob of obstacles) drawObstacle(ob);
+
+      // Lyrics
+      ctx.font = `${CONFIG.LYRICS_FONT_SIZE}px bold Arial`;
+      ctx.fillStyle = "#000";
+      for(const l of letters){
+        ctx.fillText(l.char, l.x, l.y);
+      }
     }
 
     function drawLayer(tilesArray, prefix, id, fallbackAlpha, targetHeight, alreadyAdjusted){

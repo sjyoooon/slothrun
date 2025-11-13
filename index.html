@@ -263,7 +263,32 @@
       FINISH_MESSAGE: "I'm full",
       FINISH_MESSAGE_OFFSET_Y: -40, // px offset from character top (negative = above)
       FINISH_MESSAGE_FONT_SIZE: 28,
-      FINISH_MESSAGE_COLOR: "#ff6b35"
+      FINISH_MESSAGE_COLOR: "#ff6b35",
+
+      // ===== Particle effects =====
+      // Jump particles (spawn when jumping from ground)
+      ENABLE_JUMP_PARTICLES: true,           // Enable/disable jump particles
+      JUMP_PARTICLE_COUNT: 8,                // Number of particles per jump
+      JUMP_PARTICLE_COLOR: "#000000",        // Particle color (black)
+      JUMP_PARTICLE_SIZE_MIN: 2,             // Min particle size (px)
+      JUMP_PARTICLE_SIZE_MAX: 4,             // Max particle size (px)
+      JUMP_PARTICLE_SPEED_MIN: 80,           // Min upward speed (px/s)
+      JUMP_PARTICLE_SPEED_MAX: 180,          // Max upward speed (px/s)
+      JUMP_PARTICLE_SPREAD: 40,              // Horizontal spread from jump point (px)
+      JUMP_PARTICLE_LIFETIME: 0.6,           // Particle lifetime (seconds)
+      JUMP_PARTICLE_GRAVITY: 500,            // Particle gravity (px/s^2)
+
+      // Landing particles (spawn when landing on ground)
+      ENABLE_LANDING_PARTICLES: true,        // Enable/disable landing particles
+      LANDING_PARTICLE_COUNT: 10,            // Number of particles per landing
+      LANDING_PARTICLE_COLOR: "#333333",     // Particle color (dark gray)
+      LANDING_PARTICLE_SIZE_MIN: 2,          // Min particle size (px)
+      LANDING_PARTICLE_SIZE_MAX: 5,          // Max particle size (px)
+      LANDING_PARTICLE_SPEED_MIN: 100,       // Min upward speed (px/s)
+      LANDING_PARTICLE_SPEED_MAX: 220,       // Max upward speed (px/s)
+      LANDING_PARTICLE_SPREAD: 50,           // Horizontal spread from landing point (px)
+      LANDING_PARTICLE_LIFETIME: 0.7,        // Particle lifetime (seconds)
+      LANDING_PARTICLE_GRAVITY: 600          // Particle gravity (px/s^2)
     };
 
     // ===============================
@@ -448,6 +473,9 @@
     let layerFarAdjusted=false, layerBgAdjusted=false, layerMidAdjusted=false, layerForeAdjusted=false;
     let randGap=0;
 
+    // Particles
+    let particles=[]; // {x, y, vx, vy, size, color, lifetime, age, gravity}
+
     // Lyrics spawn system
     let letters=[]; // {char, x, y, w, speed}
     let lyricsIndex=0, elapsedTime=0, nextSpawnTime=0, baseInterval=0;
@@ -458,6 +486,80 @@
     const v0_max = Math.sqrt(2*CONFIG.GRAVITY*CONFIG.JUMP_MAX_HEIGHT);
     const v0_add_total = Math.max(0, v0_max - v0_min);
     const hold_window = Math.max(0.0001, CONFIG.JUMP_MAX_HOLD - CONFIG.JUMP_MIN_HOLD);
+
+    // ===============================
+    // Particle system
+    // ===============================
+    function createJumpParticles(){
+      if(!CONFIG.ENABLE_JUMP_PARTICLES) return;
+
+      const x = dino.x + CONFIG.DINO_HITBOX_OFFSET_X + CONFIG.DINO_HITBOX_WIDTH / 2;
+      const y = CONFIG.GROUND_Y;
+
+      for(let i = 0; i < CONFIG.JUMP_PARTICLE_COUNT; i++){
+        particles.push({
+          x: x + randFloat(-CONFIG.JUMP_PARTICLE_SPREAD / 2, CONFIG.JUMP_PARTICLE_SPREAD / 2),
+          y: y,
+          vx: randFloat(-50, 50), // slight horizontal variation
+          vy: -randFloat(CONFIG.JUMP_PARTICLE_SPEED_MIN, CONFIG.JUMP_PARTICLE_SPEED_MAX),
+          size: randFloat(CONFIG.JUMP_PARTICLE_SIZE_MIN, CONFIG.JUMP_PARTICLE_SIZE_MAX),
+          color: CONFIG.JUMP_PARTICLE_COLOR,
+          lifetime: CONFIG.JUMP_PARTICLE_LIFETIME,
+          age: 0,
+          gravity: CONFIG.JUMP_PARTICLE_GRAVITY
+        });
+      }
+    }
+
+    function createLandingParticles(){
+      if(!CONFIG.ENABLE_LANDING_PARTICLES) return;
+
+      const x = dino.x + CONFIG.DINO_HITBOX_OFFSET_X + CONFIG.DINO_HITBOX_WIDTH / 2;
+      const y = CONFIG.GROUND_Y;
+
+      for(let i = 0; i < CONFIG.LANDING_PARTICLE_COUNT; i++){
+        particles.push({
+          x: x + randFloat(-CONFIG.LANDING_PARTICLE_SPREAD / 2, CONFIG.LANDING_PARTICLE_SPREAD / 2),
+          y: y,
+          vx: randFloat(-80, 80), // more horizontal variation on landing
+          vy: -randFloat(CONFIG.LANDING_PARTICLE_SPEED_MIN, CONFIG.LANDING_PARTICLE_SPEED_MAX),
+          size: randFloat(CONFIG.LANDING_PARTICLE_SIZE_MIN, CONFIG.LANDING_PARTICLE_SIZE_MAX),
+          color: CONFIG.LANDING_PARTICLE_COLOR,
+          lifetime: CONFIG.LANDING_PARTICLE_LIFETIME,
+          age: 0,
+          gravity: CONFIG.LANDING_PARTICLE_GRAVITY
+        });
+      }
+    }
+
+    function updateParticles(dt){
+      for(let i = particles.length - 1; i >= 0; i--){
+        const p = particles[i];
+        p.age += dt;
+
+        // Remove dead particles
+        if(p.age >= p.lifetime){
+          particles.splice(i, 1);
+          continue;
+        }
+
+        // Update position
+        p.vy += p.gravity * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+    }
+
+    function renderParticles(){
+      for(const p of particles){
+        // Fade out based on age
+        const alpha = 1.0 - (p.age / p.lifetime);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+      ctx.globalAlpha = 1.0; // reset
+    }
 
     // ===============================
     // Speed curve (base * linear ramp)
@@ -484,6 +586,7 @@
       chooseRunAssets();
 
       obstacles.length=0;
+      particles.length=0;
       layerFarTiles.length=0; layerBgTiles.length=0;
       layerMidTiles.length=0; layerForeTiles.length=0;
       layerFarAdjusted=false; layerBgAdjusted=false;
@@ -619,6 +722,7 @@
         pressActive=true; dino.holding=true; dino.holdElapsed=0;
         dino.vy = -v0_min;                   // initial minimal jump impulse
         dino.onGround=false;
+        createJumpParticles();               // spawn jump particles
       }
     }
     function onPressEnd(ev){
@@ -672,7 +776,11 @@
       // Ground collision
       const groundTop = CONFIG.GROUND_Y - dino.h;
       if(dino.y >= groundTop){
+        const wasInAir = !dino.onGround; // track if we were in air before landing
         dino.y = groundTop; dino.vy = 0; dino.onGround = true; dino.holding = false;
+        if(wasInAir){
+          createLandingParticles(); // spawn landing particles
+        }
       }
 
       // Spawns
@@ -769,6 +877,9 @@
       updateLayerScroll(layerMidTiles, speed * CONFIG.LAYER_MID_SCROLL_PARALLAX * dt);
       updateLayerScroll(layerForeTiles, speed * CONFIG.LAYER_FORE_SCROLL_PARALLAX * dt);
 
+      // Update particles
+      updateParticles(dt);
+
       render();
       requestAnimationFrame(loop);
     }
@@ -794,6 +905,9 @@
       ctx.moveTo(0, CONFIG.GROUND_Y+0.5);
       ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y+0.5);
       ctx.stroke();
+
+      // Particles (drawn behind player and obstacles)
+      renderParticles();
 
       // Player
       drawDino();

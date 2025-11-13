@@ -44,7 +44,6 @@
       width: 100%;
       height: auto;
       display: block;
-      border: 1px solid #ddd;
       background: #fff;
       touch-action: none;       /* ensure pointer events go to game */
       user-select: none;
@@ -61,10 +60,8 @@
       z-index: 10;
     }
     .badge {
-      background: rgba(255,255,255,.85);
-      border: 1px solid #eee;
+      background: transparent;
       padding: 6px 10px;
-      border-radius: 8px;
     }
 
     #overlay {
@@ -115,6 +112,7 @@
 
       // Player / ground
       GROUND_Y: 500,
+      GROUND_LINE_WIDTH: 2,    // px (ground line thickness)
       DINO_X: 60,
       DINO_WIDTH: 72,
       DINO_HEIGHT: 84,
@@ -231,6 +229,7 @@
       // ===== Lyrics spawn system =====
       LYRICS_TEXT: "SLOTH RUN   KEEP GOING   NEVER STOP",
       LYRICS_FONT_SIZE: 80,
+      LYRICS_FONT_BOLD: false,  // Set to true for bold lyrics
       LYRICS_SPACE_MULTIPLIER: 1.5,
       LYRICS_Y: 600,  // Y position for spawned lyrics (above game area)
 
@@ -719,6 +718,7 @@
 
       // Ground line
       ctx.strokeStyle="#ddd";
+      ctx.lineWidth = CONFIG.GROUND_LINE_WIDTH;
       ctx.beginPath();
       ctx.moveTo(0, CONFIG.GROUND_Y+0.5);
       ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y+0.5);
@@ -751,7 +751,8 @@
       }
 
       // Lyrics
-      ctx.font = `${CONFIG.LYRICS_FONT_SIZE}px bold Arial`;
+      const lyricsFontWeight = CONFIG.LYRICS_FONT_BOLD ? "bold" : "normal";
+      ctx.font = `${lyricsFontWeight} ${CONFIG.LYRICS_FONT_SIZE}px system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", Arial, sans-serif`;
       ctx.fillStyle = "#000";
       for(const l of letters){
         ctx.fillText(l.char, l.x, l.y);

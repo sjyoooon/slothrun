@@ -189,7 +189,8 @@
       HIGH_SCORE_KEY: "dino_highscore_touch_v1",
 
       // Score display settings
-      SCORE_FONT_SIZE: 16,        // px
+      SCORE_FONT_SIZE: 16,        // px (score font size)
+      HIGHSCORE_FONT_SIZE: 16,    // px (high score font size)
       SCORE_Y_POSITION: 50,       // px from top
       HIGHSCORE_Y_POSITION: 20,   // px from top
       SCORE_COLOR: "#000000",     // Score text color (default: black)
@@ -235,10 +236,10 @@
       LYRICS_FONT_BOLD: true,  // Set to true for bold lyrics
       LYRICS_SPACE_MULTIPLIER: 1.5,
       LYRICS_Y: 600,  // Y position for spawned lyrics (above game area)
+      LYRICS_REPEAT_DELAY: 3.0,  // seconds delay before lyrics repeat
 
       // ===== Finish message (displayed on character when game ends) =====
       FINISH_MESSAGE: "I'm full",
-      FINISH_MESSAGE_OFFSET_X: 0,   // px offset from character center
       FINISH_MESSAGE_OFFSET_Y: -40, // px offset from character top (negative = above)
       FINISH_MESSAGE_FONT_SIZE: 28,
       FINISH_MESSAGE_COLOR: "#ff6b35"
@@ -261,7 +262,7 @@
     restartBtn.style.bottom = CONFIG.RESTART_BTN_OFFSET_Y + "px";
 
     // Apply score display settings from CONFIG
-    highScoreEl.style.fontSize = CONFIG.SCORE_FONT_SIZE + "px";
+    highScoreEl.style.fontSize = CONFIG.HIGHSCORE_FONT_SIZE + "px";
     highScoreEl.style.marginTop = CONFIG.HIGHSCORE_Y_POSITION + "px";
     highScoreEl.style.color = CONFIG.HIGHSCORE_COLOR;
     scoreEl.style.fontSize = CONFIG.SCORE_FONT_SIZE + "px";
@@ -406,6 +407,7 @@
     // Lyrics spawn system
     let letters=[]; // {char, x, y, w, speed}
     let lyricsIndex=0, elapsedTime=0, nextSpawnTime=0, baseInterval=0;
+    let lyricsRepeatDelayRemaining=0; // remaining delay before lyrics repeat
 
     // Variable jump precompute
     const v0_min = Math.sqrt(2*CONFIG.GRAVITY*CONFIG.JUMP_MIN_HEIGHT);
@@ -449,6 +451,7 @@
       lyricsIndex = 0;
       elapsedTime = 0;
       nextSpawnTime = 0;
+      lyricsRepeatDelayRemaining = 0;
       baseInterval = CONFIG.LYRICS_FONT_SIZE / CONFIG.SPEED_BASE;
 
       // Initialize 4 parallax layers (3 tiles each for seamless scrolling)
@@ -633,6 +636,20 @@
 
       // Lyrics spawn system
       elapsedTime += dt;
+
+      // Handle lyrics repeat delay
+      if(lyricsIndex >= CONFIG.LYRICS_TEXT.length){
+        if(lyricsRepeatDelayRemaining > 0){
+          lyricsRepeatDelayRemaining -= dt;
+        }else{
+          // Reset lyrics to repeat
+          lyricsIndex = 0;
+          nextSpawnTime = elapsedTime;
+          lyricsRepeatDelayRemaining = CONFIG.LYRICS_REPEAT_DELAY;
+        }
+      }
+
+      // Spawn lyrics characters
       while(lyricsIndex < CONFIG.LYRICS_TEXT.length && elapsedTime >= nextSpawnTime){
         const ch = CONFIG.LYRICS_TEXT[lyricsIndex++];
         if(ch === " "){
@@ -765,11 +782,23 @@
 
       // Finish message (displayed on character when game ends)
       if(state.dead){
+        // Get character image to calculate center
+        const frame = Math.floor(state.animTime * 8) % 2;
+        const key = `${CONFIG.DINO_PREFIX}${curDinoId}_${frame===0?"a":"b"}.png`;
+        const e = imageCache.get(key);
+
+        // Calculate character width (actual rendered width)
+        let charWidth = dino.w; // fallback
+        if(e && e.loaded && e.ok){
+          charWidth = e.width * CONFIG.DINO_IMAGE_SCALE;
+        }
+
         ctx.font = `bold ${CONFIG.FINISH_MESSAGE_FONT_SIZE}px Arial`;
         ctx.fillStyle = CONFIG.FINISH_MESSAGE_COLOR;
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        const msgX = dino.x + dino.w/2 + CONFIG.FINISH_MESSAGE_OFFSET_X;
+        // Auto-center on character's x-axis
+        const msgX = dino.x + charWidth / 2;
         const msgY = dino.y + CONFIG.FINISH_MESSAGE_OFFSET_Y;
         ctx.fillText(CONFIG.FINISH_MESSAGE, msgX, msgY);
         ctx.textAlign = "left";

@@ -310,7 +310,16 @@
       GROUND_DOT_COLOR: "#000000",           // Dot color
       GROUND_DOT_ALPHA: 0.3,                 // Dot alpha (0.0-1.0)
       GROUND_DOT_Y_OFFSET: 20,               // Distance below ground line (px)
-      GROUND_DOT_SPACING: 60                 // Horizontal spacing between dots (px)
+      GROUND_DOT_SPACING: 60,                // Horizontal spacing between dots (px)
+
+      // ===== Countdown Timer =====
+      COUNTDOWN_ENABLED: true,                          // Enable/disable countdown timer
+      COUNTDOWN_TARGET_TIME: "2015-11-14T00:00:00",    // Target time (ISO 8601 format: YYYY-MM-DDTHH:mm:ss)
+      COUNTDOWN_MESSAGE: "Time until game starts:",     // Message to display above countdown
+      COUNTDOWN_MESSAGE_COLOR: "#000000",               // Message text color
+      COUNTDOWN_MESSAGE_SIZE: 30,                       // Message font size (px)
+      COUNTDOWN_TIME_COLOR: "#000000",                  // Countdown time text color
+      COUNTDOWN_TIME_SIZE: 80                           // Countdown time font size (px)
     };
 
     // ===============================
@@ -481,6 +490,15 @@
       runStartTime:0, lastTime:0, animTime:0,
       score:0, highScore:Number(localStorage.getItem(CONFIG.HIGH_SCORE_KEY)||0),
       distSinceLast:0
+    };
+
+    // ===============================
+    // Countdown state
+    // ===============================
+    const countdownState = {
+      active: false,           // Is countdown currently active?
+      targetTime: null,        // Target time as Date object
+      animationId: null        // RequestAnimationFrame ID for countdown loop
     };
 
     const dino = {
@@ -1213,11 +1231,112 @@
     }
 
     // ===============================
+    // Countdown Timer Functions
+    // ===============================
+    // Format time remaining as HH:MM:SS
+    function formatTimeRemaining(ms){
+      if(ms <= 0) return "00:00:00";
+
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    // Render countdown screen
+    function renderCountdown(){
+      const now = Date.now();
+      const remaining = countdownState.targetTime - now;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+
+      // Calculate center position
+      const centerX = CONFIG.GAME_WIDTH / 2;
+      const centerY = CONFIG.GAME_HEIGHT / 2;
+
+      // Draw message (first line)
+      ctx.font = `${CONFIG.COUNTDOWN_MESSAGE_SIZE}px system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", Arial, sans-serif`;
+      ctx.fillStyle = CONFIG.COUNTDOWN_MESSAGE_COLOR;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(CONFIG.COUNTDOWN_MESSAGE, centerX, centerY - 60);
+
+      // Draw countdown time (second line)
+      ctx.font = `${CONFIG.COUNTDOWN_TIME_SIZE}px system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", Arial, sans-serif`;
+      ctx.fillStyle = CONFIG.COUNTDOWN_TIME_COLOR;
+      ctx.fillText(formatTimeRemaining(remaining), centerX, centerY + 40);
+
+      // Reset text alignment
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    // Countdown animation loop
+    function countdownLoop(){
+      if(!countdownState.active) return;
+
+      const now = Date.now();
+      const remaining = countdownState.targetTime - now;
+
+      // Check if countdown is complete
+      if(remaining <= 0){
+        countdownState.active = false;
+        if(countdownState.animationId){
+          cancelAnimationFrame(countdownState.animationId);
+          countdownState.animationId = null;
+        }
+        // Start the game
+        resetGame();
+        return;
+      }
+
+      // Render countdown
+      renderCountdown();
+
+      // Continue loop
+      countdownState.animationId = requestAnimationFrame(countdownLoop);
+    }
+
+    // Check if countdown should be shown
+    function checkCountdown(){
+      if(!CONFIG.COUNTDOWN_ENABLED){
+        // Countdown disabled, start game immediately
+        resetGame();
+        return;
+      }
+
+      // Parse target time
+      try{
+        countdownState.targetTime = new Date(CONFIG.COUNTDOWN_TARGET_TIME).getTime();
+      }catch(err){
+        console.warn('Invalid COUNTDOWN_TARGET_TIME, starting game immediately:', err);
+        resetGame();
+        return;
+      }
+
+      const now = Date.now();
+      const remaining = countdownState.targetTime - now;
+
+      if(remaining <= 0){
+        // Target time has passed, start game immediately
+        resetGame();
+      }else{
+        // Show countdown
+        countdownState.active = true;
+        countdownLoop();
+      }
+    }
+
+    // ===============================
     // Boot
     // ===============================
     highScoreEl.textContent = `HIGH SCORE: ${state.highScore}`;
     scoreEl.textContent = `SCORE: 0`;
-    resetGame();
+    checkCountdown();
   </script>
 </body>
 </html>

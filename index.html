@@ -271,6 +271,7 @@
       SEQUENTIAL_LYRICS_ALPHA: 0.7,        // Sequential lyrics text alpha (0.0-1.0, default: 1.0)
       SEQUENTIAL_LYRICS_SHOW_DURATION: 0.4,  // Duration to show word before fading (seconds)
       SEQUENTIAL_LYRICS_FADE_DURATION: 0.4,   // Duration of fade out animation (seconds)
+      ENABLE_SEQUENTIAL_LYRICS_PUNCH_EFFECT: true,  // Enable/disable punch effect (scale animation) for sequential lyrics
 
       // ===== Finish message (displayed on character when game ends) =====
       FINISH_MESSAGE: "I'm full",
@@ -996,16 +997,18 @@
 
         // Calculate punch effect (scale animation - same as score popup)
         let scale = 1.0;
-        const punchDuration = 0.3; // 0.3 seconds punch animation
-        if(elapsed < punchDuration){
-          const t = elapsed / punchDuration;
-          // Apply ease-out timing function: 1 - (1-t)^3
-          const easeOut = 1 - Math.pow(1 - t, 3);
-          // Scale from 1.0 to 1.2 at 50%, then back to 1.0 (same as score)
-          if(easeOut < 0.5){
-            scale = 1.0 + (0.2 * (easeOut / 0.5)); // 1.0 -> 1.2
-          }else{
-            scale = 1.2 - (0.2 * ((easeOut - 0.5) / 0.5)); // 1.2 -> 1.0
+        if(CONFIG.ENABLE_SEQUENTIAL_LYRICS_PUNCH_EFFECT){
+          const punchDuration = 0.3; // 0.3 seconds punch animation
+          if(elapsed < punchDuration){
+            const t = elapsed / punchDuration;
+            // Apply ease-out timing function: 1 - (1-t)^3
+            const easeOut = 1 - Math.pow(1 - t, 3);
+            // Scale from 1.0 to 1.2 at 50%, then back to 1.0 (same as score)
+            if(easeOut < 0.5){
+              scale = 1.0 + (0.2 * (easeOut / 0.5)); // 1.0 -> 1.2
+            }else{
+              scale = 1.2 - (0.2 * ((easeOut - 0.5) / 0.5)); // 1.2 -> 1.0
+            }
           }
         }
 

@@ -219,17 +219,17 @@
       // ===== Scroll speed curve (affects obstacles & background) =====
       SPEED_BASE: 336,        // 280 px/s (base)
       SPEED_MAX_MULT: 3.5,    // 3 max multiplier (final speed = base * this)
-      SPEED_RAMP_SECONDS: 1, // 60 seconds to reach max multiplier (linear)
+      SPEED_RAMP_SECONDS: 30, // 60 seconds to reach max multiplier (linear)
 
       // ===== Obstacle spawn =====
       OBST_WIDTH: 30,
       OBST_HEIGHT: 50,
       OBST_BASE_GAP: 480,              // Base distance (px) for obstacle spacing
       OBST_GAP_MULTIPLIER_MIN: 1.0,    // Min gap multiplier
-      OBST_GAP_MULTIPLIER_MAX: 1.0,   //1.64 Max gap multiplier (365 * 1.64 ≈ 600)
+      OBST_GAP_MULTIPLIER_MAX: 2.0,   //1.64 Max gap multiplier (365 * 1.64 ≈ 600)
 
       // Obstacle size multipliers (min/max for random variation)
-      OBST_SIZE_MULTIPLIER_MIN: 1.1,//0.8
+      OBST_SIZE_MULTIPLIER_MIN: 0.8,//0.8
       OBST_SIZE_MULTIPLIER_MAX: 1.1, //1.1
       AOBST_SIZE_MULTIPLIER_MIN: 1.0,
       AOBST_SIZE_MULTIPLIER_MAX: 1.0,

@@ -192,6 +192,9 @@
       SCORE_FONT_SIZE: 16,        // px
       SCORE_Y_POSITION: 50,       // px from top
       HIGHSCORE_Y_POSITION: 20,   // px from top
+      SCORE_COLOR: "#000000",     // Score text color (default: black)
+      HIGHSCORE_COLOR: "#000000", // High score text color (default: black)
+      GROUND_LINE_COLOR: "#000000", // Ground line color (default: black)
 
       // ===== Scroll speed curve (affects obstacles & background) =====
       SPEED_BASE: 280,        // px/s (base)
@@ -260,8 +263,10 @@
     // Apply score display settings from CONFIG
     highScoreEl.style.fontSize = CONFIG.SCORE_FONT_SIZE + "px";
     highScoreEl.style.marginTop = CONFIG.HIGHSCORE_Y_POSITION + "px";
+    highScoreEl.style.color = CONFIG.HIGHSCORE_COLOR;
     scoreEl.style.fontSize = CONFIG.SCORE_FONT_SIZE + "px";
     scoreEl.style.marginTop = (CONFIG.SCORE_Y_POSITION - CONFIG.HIGHSCORE_Y_POSITION) + "px";
+    scoreEl.style.color = CONFIG.SCORE_COLOR;
 
     // ===============================
     // Helpers
@@ -717,7 +722,7 @@
       }
 
       // Ground line
-      ctx.strokeStyle="#ddd";
+      ctx.strokeStyle = CONFIG.GROUND_LINE_COLOR;
       ctx.lineWidth = CONFIG.GROUND_LINE_WIDTH;
       ctx.beginPath();
       ctx.moveTo(0, CONFIG.GROUND_Y+0.5);

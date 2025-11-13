@@ -212,6 +212,8 @@
       HIGHSCORE_Y_POSITION: 35,   // px from top
       SCORE_COLOR: "#000000",     // Score text color (default: black)
       HIGHSCORE_COLOR: "#000000", // High score text color (default: black)
+      SCORE_ALPHA: 1.0,           // Score text alpha (0.0-1.0, default: 1.0)
+      HIGHSCORE_ALPHA: 1.0,       // High score text alpha (0.0-1.0, default: 1.0)
       GROUND_LINE_COLOR: "#000000", // Ground line color (default: black)
 
       // ===== Scroll speed curve (affects obstacles & background) =====
@@ -254,6 +256,8 @@
       LYRICS_SPACE_MULTIPLIER: 1.5,
       LYRICS_Y: 600,  // Y position for spawned lyrics (above game area)
       LYRICS_REPEAT_DELAY: 3.0,  // seconds delay before lyrics repeat
+      LYRICS_COLOR: "#000000",    // Lyrics text color (default: black)
+      LYRICS_ALPHA: 1.0,          // Lyrics text alpha (0.0-1.0, default: 1.0)
 
       // ===== Finish message (displayed on character when game ends) =====
       FINISH_MESSAGE: "I'm full",
@@ -273,6 +277,32 @@
     const restartBtn = document.getElementById("restartBtn");
     cvs.width = CONFIG.GAME_WIDTH; cvs.height = CONFIG.GAME_HEIGHT;
 
+    // ===============================
+    // Helpers
+    // ===============================
+    // Convert hex color to rgba with alpha value
+    function hexToRgba(hex, alpha){
+      // Remove # if present
+      hex = hex.replace(/^#/, '');
+
+      // Parse hex values
+      let r, g, b;
+      if(hex.length === 3){
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+      }else if(hex.length === 6){
+        r = parseInt(hex.substr(0, 2), 16);
+        g = parseInt(hex.substr(2, 2), 16);
+        b = parseInt(hex.substr(4, 2), 16);
+      }else{
+        // Invalid hex, return black with alpha
+        return `rgba(0, 0, 0, ${alpha})`;
+      }
+
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
     // Apply restart button size and position from CONFIG
     restartBtn.style.width = CONFIG.RESTART_BTN_WIDTH + "px";
     restartBtn.style.height = CONFIG.RESTART_BTN_HEIGHT + "px";
@@ -281,14 +311,11 @@
     // Apply score display settings from CONFIG
     highScoreEl.style.fontSize = CONFIG.HIGHSCORE_FONT_SIZE + "px";
     highScoreEl.style.marginTop = CONFIG.HIGHSCORE_Y_POSITION + "px";
-    highScoreEl.style.color = CONFIG.HIGHSCORE_COLOR;
+    highScoreEl.style.color = hexToRgba(CONFIG.HIGHSCORE_COLOR, CONFIG.HIGHSCORE_ALPHA);
     scoreEl.style.fontSize = CONFIG.SCORE_FONT_SIZE + "px";
     scoreEl.style.marginTop = (CONFIG.SCORE_Y_POSITION - CONFIG.HIGHSCORE_Y_POSITION) + "px";
-    scoreEl.style.color = CONFIG.SCORE_COLOR;
+    scoreEl.style.color = hexToRgba(CONFIG.SCORE_COLOR, CONFIG.SCORE_ALPHA);
 
-    // ===============================
-    // Helpers
-    // ===============================
     const imageCache = new Map();
     function loadImageOnce(src){
       if(imageCache.has(src)) return imageCache.get(src);
@@ -797,7 +824,7 @@
       // Lyrics
       const lyricsFontWeight = CONFIG.LYRICS_FONT_BOLD ? "bold" : "normal";
       ctx.font = `${lyricsFontWeight} ${CONFIG.LYRICS_FONT_SIZE}px system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", Arial, sans-serif`;
-      ctx.fillStyle = "#000";
+      ctx.fillStyle = hexToRgba(CONFIG.LYRICS_COLOR, CONFIG.LYRICS_ALPHA);
       for(const l of letters){
         ctx.fillText(l.char, l.x, l.y);
       }

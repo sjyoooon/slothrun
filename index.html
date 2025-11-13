@@ -302,7 +302,15 @@
       LANDING_PARTICLE_SPEED_MAX: 220,       // Max upward speed (px/s)
       LANDING_PARTICLE_SPREAD: 50,           // Horizontal spread from landing point (px)
       LANDING_PARTICLE_LIFETIME: 0.1,        // Particle lifetime (seconds)
-      LANDING_PARTICLE_GRAVITY: 600          // Particle gravity (px/s^2)
+      LANDING_PARTICLE_GRAVITY: 600,         // Particle gravity (px/s^2)
+
+      // ===== Ground scroll dots =====
+      ENABLE_GROUND_DOTS: true,              // Enable/disable ground scroll dots
+      GROUND_DOT_SIZE: 3,                    // Dot size (px)
+      GROUND_DOT_COLOR: "#000000",           // Dot color
+      GROUND_DOT_ALPHA: 0.3,                 // Dot alpha (0.0-1.0)
+      GROUND_DOT_Y_OFFSET: 20,               // Distance below ground line (px)
+      GROUND_DOT_SPACING: 60                 // Horizontal spacing between dots (px)
     };
 
     // ===============================
@@ -490,6 +498,9 @@
     // Particles
     let particles=[]; // {x, y, vx, vy, size, color, lifetime, age, gravity}
 
+    // Ground scroll dots
+    let groundDots=[]; // {x, y}
+
     // Lyrics spawn system
     let letters=[]; // {char, x, y, w, speed}
     let lyricsIndex=0, elapsedTime=0, nextSpawnTime=0, baseInterval=0;
@@ -581,6 +592,64 @@
     }
 
     // ===============================
+    // Ground scroll dots system
+    // ===============================
+    function initGroundDots(){
+      if(!CONFIG.ENABLE_GROUND_DOTS) return;
+      groundDots.length = 0;
+
+      const dotY = CONFIG.GROUND_Y + CONFIG.GROUND_DOT_Y_OFFSET;
+      const dotsNeeded = Math.ceil(CONFIG.GAME_WIDTH / CONFIG.GROUND_DOT_SPACING) + 1;
+
+      for(let i = 0; i < dotsNeeded; i++){
+        groundDots.push({
+          x: i * CONFIG.GROUND_DOT_SPACING,
+          y: dotY
+        });
+      }
+    }
+
+    function updateGroundDots(dt, speed){
+      if(!CONFIG.ENABLE_GROUND_DOTS) return;
+
+      const dotY = CONFIG.GROUND_Y + CONFIG.GROUND_DOT_Y_OFFSET;
+
+      // Move all dots left
+      for(const dot of groundDots){
+        dot.x -= speed * dt;
+      }
+
+      // Remove dots that moved off-screen (left side)
+      while(groundDots.length > 0 && groundDots[0].x < -CONFIG.GROUND_DOT_SPACING){
+        groundDots.shift();
+      }
+
+      // Add new dots on the right side as needed
+      while(groundDots.length === 0 || groundDots[groundDots.length - 1].x < CONFIG.GAME_WIDTH){
+        const lastX = groundDots.length > 0 ? groundDots[groundDots.length - 1].x : -CONFIG.GROUND_DOT_SPACING;
+        groundDots.push({
+          x: lastX + CONFIG.GROUND_DOT_SPACING,
+          y: dotY
+        });
+      }
+    }
+
+    function renderGroundDots(){
+      if(!CONFIG.ENABLE_GROUND_DOTS) return;
+
+      ctx.globalAlpha = CONFIG.GROUND_DOT_ALPHA;
+      ctx.fillStyle = CONFIG.GROUND_DOT_COLOR;
+
+      for(const dot of groundDots){
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, CONFIG.GROUND_DOT_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1.0; // reset
+    }
+
+    // ===============================
     // Speed curve (base * linear ramp)
     // ===============================
     function currentScrollSpeed(nowMs){
@@ -606,6 +675,7 @@
 
       obstacles.length=0;
       particles.length=0;
+      groundDots.length=0;
       layerFarTiles.length=0; layerBgTiles.length=0;
       layerMidTiles.length=0; layerForeTiles.length=0;
       layerFarAdjusted=false; layerBgAdjusted=false;
@@ -635,6 +705,9 @@
       initLayerTiles(layerBgTiles, CONFIG.LAYER_BG_DRAW_WIDTH, CONFIG.LAYER_BG_DRAW_HEIGHT, CONFIG.LAYER_BG_Y);
       initLayerTiles(layerMidTiles, CONFIG.LAYER_MID_DRAW_WIDTH, CONFIG.LAYER_MID_DRAW_HEIGHT, CONFIG.LAYER_MID_Y);
       initLayerTiles(layerForeTiles, CONFIG.LAYER_FORE_DRAW_WIDTH, CONFIG.LAYER_FORE_DRAW_HEIGHT, CONFIG.LAYER_FORE_Y);
+
+      // Initialize ground scroll dots
+      initGroundDots();
 
       overlay.style.display="none";
       scoreEl.textContent = `SCORE: ${state.score}`;
@@ -925,6 +998,9 @@
       // Update particles
       updateParticles(dt);
 
+      // Update ground scroll dots
+      updateGroundDots(dt, speed);
+
       render();
       requestAnimationFrame(loop);
     }
@@ -950,6 +1026,9 @@
       ctx.moveTo(0, CONFIG.GROUND_Y+0.5);
       ctx.lineTo(CONFIG.GAME_WIDTH, CONFIG.GROUND_Y+0.5);
       ctx.stroke();
+
+      // Ground scroll dots (drawn below ground line)
+      renderGroundDots();
 
       // Particles (drawn behind player and obstacles)
       renderParticles();
